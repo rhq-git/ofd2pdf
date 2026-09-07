@@ -122,4 +122,6 @@ ofd2pdf/
 
 ## 许可证
 
-MIT。底层 [ofd-utility](https://github.com/ofd-utility/ofd-utility) 同为 MIT。
+本项目为 MIT（见 [LICENSE](LICENSE)）。
+
+捆绑 / 依赖的 [ofd-utility](https://github.com/ofd-utility/ofd-utility)（`ofd-cli`）同为 MIT；上游版权与许可全文见 [NOTICE](NOTICE)。

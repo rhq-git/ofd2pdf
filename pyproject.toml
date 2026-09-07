@@ -4,7 +4,7 @@ version = "0.2.0"
 description = "Convert OFD (GB/T 33190) documents to PDF using ofd-cli"
 readme = "README.md"
 license = "MIT"
-license-files = ["LICENSE"]
+license-files = ["LICENSE", "NOTICE"]
 authors = [
     { name = "wmc", email = "wmc@example.com" }
 ]
@@ -47,6 +47,7 @@ include = [
     "/scripts",
     "/README.md",
     "/LICENSE",
+    "/NOTICE",
     "/pyproject.toml",
 ]
 exclude = [

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import platform
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -66,6 +67,12 @@ def main() -> None:
     if not out.exists() and sys.platform == "win32":
         out = dist / f"{name}.exe"
     print(f"Built: {out}")
+
+    # Ship license notices next to the binary for redistribution.
+    for name_ in ("LICENSE", "NOTICE"):
+        src = ROOT / name_
+        if src.is_file():
+            shutil.copy2(src, dist / name_)
 
 
 if __name__ == "__main__":
