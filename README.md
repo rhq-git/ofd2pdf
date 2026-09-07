@@ -2,7 +2,7 @@
 
 基于 [ofd-utility](https://github.com/ofd-utility/ofd-utility) 的 `ofd-cli`，用 Python 封装：**OFD 渲染为页面图片 → 合成为 PDF**。
 
-支持 **Windows / Linux / macOS**，可通过 **PyPI 平台 wheel** 安装，或下载 **独立可执行文件**。
+官方构建支持 **Windows / Linux**，可通过 **PyPI 平台 wheel** 安装，或下载 **独立可执行文件**。
 
 ## 原理
 
@@ -103,12 +103,11 @@ git push origin v0.2.1
 
 也可在 Actions 里对 `Release` 工作流点 **Run workflow**，填已有 tag（如 `v0.2.0`）补打 wheel。
 
-产物示例：
+产物示例（仅 Windows / Linux）：
 
 - `ofd2pdf-*-py3-none-win_amd64.whl`
 - `ofd2pdf-*-py3-none-linux_x86_64.whl`（或 manylinux）
-- `ofd2pdf-*-py3-none-macosx_*.whl`
-- 各平台独立可执行文件（PyInstaller）
+- `ofd2pdf-windows-amd64.exe` / `ofd2pdf-linux-x86_64`
 
 PyPI：在仓库 Settings 中配置 Trusted Publishing（OIDC），或手动 `workflow_dispatch` 勾选 publish。
 
