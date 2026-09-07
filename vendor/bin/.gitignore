@@ -1,0 +1,3 @@
+# Keep directory for local ofd-cli copies (optional; package uses src/ofd2pdf/bin).
+*
+!.gitignore

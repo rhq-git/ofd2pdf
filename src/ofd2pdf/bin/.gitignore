@@ -1,0 +1,4 @@
+# Bundled ofd-cli lives here for wheels / PyInstaller.
+# Build with: scripts/build_ofd_cli.sh  or  scripts/build_ofd_cli.ps1
+*
+!.gitignore

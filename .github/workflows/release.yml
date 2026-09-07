@@ -1,0 +1,166 @@
+name: Release
+
+# 推送 v* tag，或在 GitHub 上发布 Release 时，自动打多平台 wheel 并挂到 Release / PyPI
+on:
+  push:
+    tags: ["v*"]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      publish_pypi:
+        description: "Publish wheels/sdist to PyPI"
+        type: boolean
+        default: false
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  build-wheels:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Windows + Linux（以及 macOS）各自 runner 上编译 ofd-cli 并打平台 wheel
+          - os: ubuntu-latest
+            artifact: linux
+          - os: windows-latest
+            artifact: windows
+          - os: macos-13
+            artifact: macos-x86_64
+          - os: macos-14
+            artifact: macos-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Sync deps
+        run: uv sync --group dev
+
+      - name: Build ofd-cli
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_ofd_cli.ps1
+          else
+            bash scripts/build_ofd_cli.sh
+          fi
+
+      - name: Build platform wheel
+        shell: bash
+        run: |
+          export OFD2PDF_REQUIRE_BIN=1
+          uv run python -m build --wheel
+          mkdir -p dist-out
+          if [[ "${{ runner.os }}" == "Linux" ]]; then
+            uv pip install auditwheel
+            for whl in dist/*.whl; do
+              if ! auditwheel repair "$whl" -w dist-out/; then
+                cp "$whl" dist-out/
+              fi
+            done
+          else
+            cp dist/*.whl dist-out/
+          fi
+          echo "Built wheels:"
+          ls -la dist-out/
+
+      - name: Build standalone binary
+        shell: bash
+        run: |
+          uv run python scripts/build_standalone.py
+          mkdir -p dist-out/standalone
+          cp -r dist/standalone/* dist-out/standalone/ || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.artifact }}
+          path: dist-out/
+
+  build-sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Sync deps
+        run: uv sync --group dev
+
+      - name: Build sdist (no bundled binary)
+        run: |
+          rm -f src/ofd2pdf/bin/ofd-cli src/ofd2pdf/bin/ofd-cli.exe
+          uv run python -m build --sdist
+          mkdir -p dist-out
+          cp dist/*.tar.gz dist-out/
+
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-sdist
+          path: dist-out/
+
+  publish:
+    needs: [build-wheels, build-sdist]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: dist-*
+          merge-multiple: true
+
+      - name: List artifacts
+        run: find artifacts -type f | sort
+
+      - name: Prepare upload dir
+        run: |
+          mkdir -p upload standalone
+          find artifacts -name '*.whl' -exec cp {} upload/ \;
+          find artifacts -name '*.tar.gz' -exec cp {} upload/ \;
+          find artifacts -path '*/standalone/*' -type f -exec cp {} standalone/ \;
+          echo "=== wheels / sdist ==="
+          ls -la upload
+          echo "=== standalone ==="
+          ls -la standalone || true
+
+      - name: Attach assets to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.release.tag_name || github.ref_name }}
+          files: |
+            upload/*
+            standalone/*
+          fail_on_unmatched_files: false
+          generate_release_notes: true
+
+      - name: Publish to PyPI
+        if: >
+          github.event_name == 'release' ||
+          startsWith(github.ref, 'refs/tags/') ||
+          inputs.publish_pypi == true
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: upload/
+          skip-existing: true

@@ -1,0 +1,28 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# ofd-utility build artifacts / clone
+vendor/ofd-utility/
+vendor/bin/*
+!vendor/bin/.gitignore
+
+# Bundled native binary (produced by scripts/build_ofd_cli.*)
+src/ofd2pdf/bin/ofd-cli
+src/ofd2pdf/bin/ofd-cli.exe
+
+# Local conversion outputs
+*.ofd
+*.pdf
+pages/
+out/
+
+# Packaging / PyInstaller
+*.spec

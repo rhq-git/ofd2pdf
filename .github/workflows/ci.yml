@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install package
+        run: uv sync --group dev
+
+      - name: Build ofd-cli
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_ofd_cli.ps1
+          else
+            bash scripts/build_ofd_cli.sh
+          fi
+
+      - name: Import smoke test
+        run: uv run python -c "from ofd2pdf import find_ofd_cli, convert_ofd_to_pdf; print(find_ofd_cli())"
+
+      - name: Build wheel
+        shell: bash
+        run: |
+          export OFD2PDF_REQUIRE_BIN=1
+          uv run python -m build --wheel
+          ls dist
