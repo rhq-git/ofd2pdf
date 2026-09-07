@@ -92,19 +92,22 @@ uv run python -m build --sdist
 uv run twine upload dist/*
 ```
 
-打 tag 或发布 GitHub Release 时，Actions 会在 **Windows / Linux / macOS** runner 上分别编译 `ofd-cli` 并打出对应 `.whl`，再挂到 Release Assets（并可推 PyPI）：
+打 tag 后，到 **Actions → Release** 等全部 job 成功；成功后 `.whl` 才会出现在 Release Assets。  
+网页上先 Publish Release 时，一开始只会看到 Source code，这是正常的。
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
-# 或在 GitHub → Releases → Draft a new release 并 Publish
+git tag v0.2.1
+git push origin v0.2.1
+# 查看进度: https://github.com/rhq-git/ofd2pdf/actions
 ```
+
+也可在 Actions 里对 `Release` 工作流点 **Run workflow**，填已有 tag（如 `v0.2.0`）补打 wheel。
 
 产物示例：
 
 - `ofd2pdf-*-py3-none-win_amd64.whl`
-- `ofd2pdf-*-py3-none-manylinux*.whl`（或 `linux_x86_64`，经 auditwheel 修复）
-- macOS arm64 / x86_64 wheel
+- `ofd2pdf-*-py3-none-linux_x86_64.whl`（或 manylinux）
+- `ofd2pdf-*-py3-none-macosx_*.whl`
 - 各平台独立可执行文件（PyInstaller）
 
 PyPI：在仓库 Settings 中配置 Trusted Publishing（OIDC），或手动 `workflow_dispatch` 勾选 publish。
