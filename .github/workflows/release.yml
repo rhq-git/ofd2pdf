@@ -86,11 +86,10 @@ jobs:
           uv run python -m build --wheel
           mkdir -p dist-out
           if [[ "${{ runner.os }}" == "Linux" ]]; then
+            # PyPI rejects plain linux_* tags; auditwheel retags to manylinux_*.
             uv pip install auditwheel
             for whl in dist/*.whl; do
-              if ! auditwheel repair "$whl" -w dist-out/; then
-                cp "$whl" dist-out/
-              fi
+              uv run auditwheel repair "$whl" -w dist-out/
             done
           else
             cp dist/*.whl dist-out/

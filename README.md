@@ -79,7 +79,7 @@ git push origin v0.2.1
 产物示例（Windows / Linux）：
 
 - `ofd2pdf-*-py3-none-win_amd64.whl`
-- `ofd2pdf-*-py3-none-linux_x86_64.whl`（或 manylinux）
+- `ofd2pdf-*-py3-none-manylinux*.whl`（经 auditwheel 修复；PyPI 不接受裸 `linux_*`）
 - `ofd2pdf-windows-amd64.exe` / `ofd2pdf-linux-x86_64`
 
 ## 目录结构
