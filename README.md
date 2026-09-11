@@ -23,24 +23,11 @@ uv add ofd2pdf
 
 ## 独立二进制（无 Python 环境）
 
-Release 产物中的 `ofd2pdf-<os>-<arch>`（PyInstaller onefile）可直接运行：
+GitHub Release 产物中的 `ofd2pdf-<os>-<arch>`（PyInstaller onefile）可直接运行：
 
 ```bash
 ./ofd2pdf-linux-x86_64 input.ofd -o out.pdf
 ofd2pdf-windows-amd64.exe input.ofd -o out.pdf
-```
-
-本地打包：
-
-```bash
-# 先编译 ofd-cli
-bash scripts/build_ofd_cli.sh   # Linux / macOS
-# 或
-powershell -NoProfile -File scripts/build_ofd_cli.ps1
-
-uv sync --group dev
-uv run python scripts/build_standalone.py
-# 产物: dist/standalone/
 ```
 
 ## 本地开发
@@ -75,41 +62,25 @@ from ofd2pdf import convert_ofd_to_pdf
 pdf = convert_ofd_to_pdf("sample.ofd", "out.pdf", dpi=150)
 ```
 
-## 构建平台 wheel / 发布
+## 发布（仅 GitHub Actions）
 
-请分别构建（不要用默认的 `python -m build` 一次打齐：它会先打 sdist 再从 sdist 打 wheel，此时没有捆绑二进制）。
-
-```bash
-# 1) 当前平台 wheel（强制捆绑 ofd-cli）
-bash scripts/build_wheel.sh
-# 或
-powershell -NoProfile -File scripts/build_wheel.ps1
-
-# 2) 源码包（不含 ofd-cli）
-uv run python -m build --sdist
-
-# 上传（需配置 PyPI token / Trusted Publishing）
-uv run twine upload dist/*
-```
-
-打 tag 后，到 **Actions → Release** 等全部 job 成功；成功后 `.whl` 才会出现在 Release Assets。  
-网页上先 Publish Release 时，一开始只会看到 Source code，这是正常的。
+打包与上传 **只在 CI 完成**：打 `v*` tag 后，Actions 会构建多平台 wheel / sdist / 独立二进制，挂到 GitHub Release，并自动上传 PyPI。
 
 ```bash
 git tag v0.2.1
 git push origin v0.2.1
-# 查看进度: https://github.com/rhq-git/ofd2pdf/actions
+# 进度: https://github.com/rhq-git/ofd2pdf/actions
 ```
 
-也可在 Actions 里对 `Release` 工作流点 **Run workflow**，填已有 tag（如 `v0.2.0`）补打 wheel。
+也可在 Actions → **Release** → **Run workflow**，填已有 tag 补打并重新上传（PyPI 已有文件会 `skip-existing`）。
 
-产物示例（仅 Windows / Linux）：
+前置：在 [PyPI](https://pypi.org) 为该项目配置 **Trusted Publishing（OIDC）**，Workflow 填 `release.yml`。
+
+产物示例（Windows / Linux）：
 
 - `ofd2pdf-*-py3-none-win_amd64.whl`
 - `ofd2pdf-*-py3-none-linux_x86_64.whl`（或 manylinux）
 - `ofd2pdf-windows-amd64.exe` / `ofd2pdf-linux-x86_64`
-
-PyPI：在仓库 Settings 中配置 Trusted Publishing（OIDC），或手动 `workflow_dispatch` 勾选 publish。
 
 ## 目录结构
 
@@ -117,7 +88,7 @@ PyPI：在仓库 Settings 中配置 Trusted Publishing（OIDC），或手动 `wo
 ofd2pdf/
 ├── src/ofd2pdf/           # Python 包
 │   └── bin/               # 构建时放入的 ofd-cli（随平台 wheel 发布）
-├── scripts/               # ofd-cli / wheel / standalone 构建脚本
+├── scripts/               # ofd-cli / standalone 构建脚本（供 CI / 本地开发）
 ├── hatch_build.py         # 平台 wheel 标记
 └── .github/workflows/     # CI 与 Release
 ```

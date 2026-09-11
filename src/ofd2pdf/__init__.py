@@ -9,7 +9,7 @@ from pathlib import Path
 from .converter import convert_ofd_to_pdf, images_to_pdf
 from .ofd_cli import OfdCliError, find_ofd_cli, ofd_info, render_ofd
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 __all__ = [
     "OfdCliError",

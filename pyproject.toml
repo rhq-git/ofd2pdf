@@ -1,6 +1,6 @@
 [project]
 name = "ofd2pdf"
-version = "0.2.0"
+version = "0.2.1"
 description = "Convert OFD (GB/T 33190) documents to PDF using ofd-cli"
 readme = "README.md"
 license = "MIT"
@@ -70,5 +70,4 @@ dev = [
     "build>=1.2",
     "hatchling>=1.25",
     "pyinstaller>=6.0",
-    "twine>=5.0",
 ]
