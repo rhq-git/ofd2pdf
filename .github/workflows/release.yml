@@ -104,19 +104,28 @@ jobs:
           echo "Built wheels:"
           ls -la dist-out/
 
+      # PyInstaller 在 manylinux 镜像里常因 libpython 路径失败；不阻断 wheel 发布
       - name: Build standalone binary
+        continue-on-error: true
         shell: bash
         run: |
+          set -euo pipefail
           export PATH="/opt/python/cp312-cp312/bin:$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
+          export LD_LIBRARY_PATH="/opt/python/cp312-cp312/lib:${LD_LIBRARY_PATH:-}"
+          yum install -y binutils zlib-devel || true
+          uv sync --group dev
+          uv run python -c "import PyInstaller; print('PyInstaller', PyInstaller.__version__)"
           uv run python scripts/build_standalone.py
           mkdir -p dist-out/standalone
           cp -r dist/standalone/* dist-out/standalone/ || true
 
       - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: dist-linux
           path: dist-out/
+          if-no-files-found: error
 
   build-wheels-windows:
     runs-on: windows-latest
