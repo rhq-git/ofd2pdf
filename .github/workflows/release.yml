@@ -1,6 +1,7 @@
 name: Release
 
 # 推送 v* tag 时：构建平台 wheel / sdist / 独立二进制 → 挂到 GitHub Release → 上传 PyPI
+# Linux wheel 在 manylinux_2_28 容器内构建，兼容 glibc≥2.28（含麒麟 V10 等）
 # 网页上先点 Publish 只会看到 Source code；产物要等本工作流全部成功后才会出现
 on:
   push:
@@ -21,16 +22,104 @@ permissions:
   id-token: write
 
 jobs:
-  build-wheels:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            artifact: linux
-          - os: windows-latest
-            artifact: windows
-    runs-on: ${{ matrix.os }}
+  build-wheels-linux:
+    runs-on: ubuntu-latest
+    # AlmaLinux 8 / glibc 2.28 — 比 ubuntu-latest(2.39) 旧，安装端才能吃到 manylinux_2_28 wheel
+    container: quay.io/pypa/manylinux_2_28_x86_64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Sync package version from tag
+        shell: bash
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          if [[ "$TAG" != v* ]]; then
+            echo "Skip version sync (ref is not a v* tag: $TAG)"
+            exit 0
+          fi
+          VERSION="${TAG#v}"
+          python3 -c "
+          import re
+          from pathlib import Path
+          version = '${VERSION}'
+          p = Path('pyproject.toml')
+          p.write_text(re.sub(r'(?m)^version = \".*\"', f'version = \"{version}\"', p.read_text(encoding='utf-8'), count=1), encoding='utf-8')
+          i = Path('src/ofd2pdf/__init__.py')
+          i.write_text(re.sub(r'__version__ = \".*\"', f'__version__ = \"{version}\"', i.read_text(encoding='utf-8'), count=1), encoding='utf-8')
+          print(f'package version -> {version}')
+          "
+
+      - name: Install build tools (Rust, uv, Python 3.12)
+        shell: bash
+        run: |
+          set -euo pipefail
+          yum install -y git gcc gcc-c++ make openssl-devel
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+          # shellcheck source=/dev/null
+          source "$HOME/.cargo/env"
+          rustc --version
+          cargo --version
+
+          PYROOT=/opt/python/cp312-cp312
+          echo "${PYROOT}/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          "${PYROOT}/bin/python" -m pip install -U pip
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="${PYROOT}/bin:$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
+          uv --version
+          python --version
+
+      - name: Sync deps
+        shell: bash
+        run: |
+          export PATH="/opt/python/cp312-cp312/bin:$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
+          uv sync --group dev
+
+      - name: Build ofd-cli
+        shell: bash
+        run: |
+          export PATH="/opt/python/cp312-cp312/bin:$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
+          bash scripts/build_ofd_cli.sh
+          # 确认二进制不会拖入比 2.28 更新的 glibc
+          ldd src/ofd2pdf/bin/ofd-cli || true
+          (command -v objdump >/dev/null && objdump -T src/ofd2pdf/bin/ofd-cli | grep -oE 'GLIBC_[0-9.]+' | sort -Vu) || true
+
+      - name: Build platform wheel
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="/opt/python/cp312-cp312/bin:$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
+          export OFD2PDF_REQUIRE_BIN=1
+          uv run python -m build --wheel
+          mkdir -p dist-out
+          # PyPI 拒绝 linux_*；auditwheel 在 manylinux_2_28 镜像内会打成 manylinux_2_28_*
+          uv pip install auditwheel
+          for whl in dist/*.whl; do
+            uv run auditwheel repair "$whl" -w dist-out/ --plat manylinux_2_28_x86_64
+          done
+          echo "Built wheels:"
+          ls -la dist-out/
+
+      - name: Build standalone binary
+        shell: bash
+        run: |
+          export PATH="/opt/python/cp312-cp312/bin:$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
+          uv run python scripts/build_standalone.py
+          mkdir -p dist-out/standalone
+          cp -r dist/standalone/* dist-out/standalone/ || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-linux
+          path: dist-out/
+
+  build-wheels-windows:
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -67,17 +156,15 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Sync deps
         run: uv sync --group dev
 
       - name: Build ofd-cli
         shell: bash
-        run: |
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_ofd_cli.ps1
-          else
-            bash scripts/build_ofd_cli.sh
-          fi
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build_ofd_cli.ps1
 
       - name: Build platform wheel
         shell: bash
@@ -85,15 +172,7 @@ jobs:
           export OFD2PDF_REQUIRE_BIN=1
           uv run python -m build --wheel
           mkdir -p dist-out
-          if [[ "${{ runner.os }}" == "Linux" ]]; then
-            # PyPI rejects plain linux_* tags; auditwheel retags to manylinux_*.
-            uv pip install auditwheel
-            for whl in dist/*.whl; do
-              uv run auditwheel repair "$whl" -w dist-out/
-            done
-          else
-            cp dist/*.whl dist-out/
-          fi
+          cp dist/*.whl dist-out/
           echo "Built wheels:"
           ls -la dist-out/
 
@@ -107,7 +186,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: dist-${{ matrix.artifact }}
+          name: dist-windows
           path: dist-out/
 
   build-sdist:
@@ -160,7 +239,7 @@ jobs:
           path: dist-out/
 
   publish:
-    needs: [build-wheels, build-sdist]
+    needs: [build-wheels-linux, build-wheels-windows, build-sdist]
     runs-on: ubuntu-latest
     steps:
       - name: Resolve tag name
